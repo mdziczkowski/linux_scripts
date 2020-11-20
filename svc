@@ -1,0 +1,54 @@
+#!/bin/bash
+
+######################################################################
+##                                                                  ##
+## Script for easier basic services management                      ##
+## Language: Bash                                                   ##
+## Author: Michal "Mcgiwer" Dziczkowski <m.dziczkowski@prokonto.pl> ##
+##                                                                  ##
+######################################################################
+
+function initd
+{
+	# Definition of basic variables
+	
+	path="/etc/init.d"
+	prg="${path}/$1"
+	cmd=$2
+	
+	# Checking if the user who's running the script has root permissions
+	
+	if [ $(id -u) -gt 0 ]; then
+		echo -e "\nThis command requires root permissions\n";
+		exit 0
+	fi
+	
+	# Check if the required parameters have been given by the user
+	
+	if [ -z "{$prg}" -o -z "${cmd}" ]; then
+		
+		# if not then display how to use it
+		
+		echo -e "\n\t
+		USAGE:\n\t
+		initd <name> <command>, where:\n
+		
+		<name> - service to handle
+		<command> - what  to do with it.\n
+		Possible options: start, stop, restart
+	\n"
+	else
+	
+		# else define the command to execute
+		
+		initd=`${prg} ${cmd}`
+	fi
+	
+	# Check if the command was sucessfull
+	
+	if [ "$?" -eq 0 ]; then
+		echo -e "\n[Success] Command: ${cmd} on ${prg}\n"
+	else
+		echo -e "\n[Failed] Command: ${cmd} on ${prg}\n"
+	fi
+}
