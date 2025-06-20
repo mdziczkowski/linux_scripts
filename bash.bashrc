@@ -17,13 +17,6 @@ if [ -z ${LC_ALL} ]; then export LC_ALL=C; fi
 
 alias Xorg="nice -n19 Xorg -depth 24 -logfile /var/log/x11.org -logverbose 2"
 
-### APT ###
-
-alias apt-get="nice -n19 apt-get -c /etc/apt/apt.conf"
-alias apt="nice -n19 apt -c /etc/apt/apt.conf"
-
-### End of APT ###
-
 alias aptitude="nice -n19 aptitude"
 alias checkout="nice -n19 git checkout --force --progress --recurse-submodules"
 alias chgrp="chgrp -Rvf"
@@ -98,7 +91,9 @@ alias wpa_supplicant="nice -n-5 wpa_supplicant -D nl80211,wext,roboswitch -i wla
 ## System variables ##
 #######################
 
-export srq="$(cat /proc/sys/kernel/sysrq)"
+# Re-Enable SysRQ key combinations
+
+if [ $(cat /proc/sys/kernel/sysrq) -ne 0 ]; then echo 1 > /proc/sys/kernel/sysrq; fi
 
 # Command history control
 
@@ -133,63 +128,39 @@ export MAKEFLAGS='-j2 -I${INCDIR} -L${LIBDIR}'
 
 if [ -z xhost_user != ${USER} ]; then sudo xhost si:localuser:${USER}; fi
 
-## Enabling SysRq in case of system becoming for any reason unresponsible
-
-if [ ${srq} != 1 ]; then
-	echo "Enabling SysRq"
-	sudo echo "1" > /proc/sys/kernel/sysrq
-
-	if [ $? -eq 0 ]; then 
-		echo "SysRq enabled"
-	else
-		echo "Enabling SysRq failed"
-	fi
-else
-	echo "SysRq enabled"
-fi
-
 ## Path related to Live system
 
 if [ -d /lib/live/mount/rootfs/01-filesystem.squashfs ]; then
 	export LIVE_ROOT="/lib/live/mount/rootfs/01-filesystem.squashfs"
 	export PATH_LIVE="${LIVE_ROOT}/bin:${LIVE_ROOT}/sbin:${LIVE_ROOT}/usr/bin:${LIVE_ROOT}/usr/sbin:${LIVE_ROOT}/usr/local/bin:${LIVE_ROOT}/usr/local/sbin"
 fi
-# Package managers
 
-case find_exec in
-	apt)
-		alias apt="apt -y"
-		alias apt-get="apt-get -y"
-		;;
+#### Functions ####
 
-	dnf)
-		alias dnf="dnf --allowerasing --best --nogpgcheck  -v -y"
-		;;
 
-	dpkg)
-		alias dpkg="dpkg --assert=multi-arch --assert=multi-conrep --assert=long-filenames --abort-after=3 -B"
-		;;
+## Package managers ##
 
-	pacman)
-		alias pacman="pacman --color always -c -v"
-		;;
+function pkg_mngr {
+	if [ -n "$1" ]; then
+		pmgr=$(which "$1"); else retuen -1; fi
 
-	rpm)
-		alias rpm="rpm --aid --nosignature --percent -v"
-		;;
+		case "${pmgr}" in
+			apt)
+				alias apt="nice -n19 apt -c /etc/apt/apt.conf"
+				alias apt-get="nice -n19 apt-get -c /etc/apt/apt.conf"
+				;;
+
+			dnf) alias dnf="dnf --allowerasing --best --nogpgcheck  -v -y" ;;
+
+			dpkg) alias dpkg="dpkg --assert=multi-arch --assert=multi-conrep --assert=long-filenames --abort-after=3 -B"  ;;
+
+			pacman) alias pacman="pacman --color always -c -v" ;;
+
+			rpm) alias rpm="rpm --aid --nosignature --percent -v" ;;
 		
-	yum)
-		alias yum="yum --allowerasing --best --bugfix --color always --enhancement --nogpgcheck --security -v -y"
-		;;
-esac
-
-## Functions
-
-
-# Update APT repository and display only the ones with are downloaded or updated
-
-function aupd {
-	apt update | grep Get
+			yum) alias yum="yum --allowerasing --best --bugfix --color always --enhancement --nogpgcheck --security -v -y" ;;
+		esac
+	else return false; fi
 }
 
 # Uninstall a package and remove the folders or files with may be left
@@ -198,12 +169,15 @@ function apurge {
 	if [ -n "$1" ]; then
 
 		file_list=$(dpkg -L "$1")
-		file=$(rl ${files} '\n')
 
 		apt -y --purge autoremove $1
 
-		rm ${file}
+		for a in ${file_list}; do
+			if [ -e ${file} ]; then rm ${file}; fi
+		done
 	fi
+
+	if [ "$?" -ne 0 ]; then dpkg -PB $1; fi
 }
 
 # Clean-up the repositories
@@ -312,7 +286,7 @@ function dir_num {
 
 ### Wrapper for the `find` function ###
 
-function ff {
+function find_wrapper {
   local extra_paths=()
   local type_line=""
   local name_line=""
@@ -591,7 +565,7 @@ function pkg_state {
 
 # Read each line of input
 
-function rl {
+function read_line {
 
 	if [ -n "$1" ]; then
 		if [ -f "$1" ]; then
